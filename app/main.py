@@ -4,6 +4,7 @@ from pathlib import Path
 from flask import Flask, jsonify
 
 from app.api import api
+from app.archive.spotcheck import SpotCheckStore
 from app.archive.store import Archive
 from app.errors import InputError
 from app.web import desk
@@ -14,6 +15,8 @@ def create_app(database=None):
     app.jinja_env.autoescape = lambda name: name is None or name.endswith(('.html', '.j2'))
     app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024
     app.extensions['monitor_archive'] = Archive(database or os.getenv('MONITOR_DATABASE', Path('var') / 'monitor.sqlite3'))
+    app.extensions['spotcheck_store'] = SpotCheckStore(
+        database or os.getenv('MONITOR_DATABASE', Path('var') / 'monitor.sqlite3'))
     app.register_blueprint(api)
     app.register_blueprint(desk)
 

@@ -3,6 +3,7 @@ from flask import Blueprint, render_template, request
 from app.api import archive
 from app.archive.certificate import issue
 from app.archive.manifest import batch_key
+from app.archive.spotcheck import SpotCheckStore
 from app.config import VERSION
 from app.errors import InputError
 from app.monitor.inspection import Inspection
@@ -21,6 +22,7 @@ def show(page='home'):
         raise InputError('STAGE_UNKNOWN', '找不到监测工序', 404)
     name, run_id = request.args.get('sample', 'dirty'), request.args.get('run')
     history, certificate = [], None
+    spot, spot_history = None, []
     if run_id:
         packet = archive().require(run_id)
         results, meta = packet['results'], packet['manifest']
@@ -34,8 +36,22 @@ def show(page='home'):
         meta = {'run_id': key, 'rule': VERSION, 'source': name, 'parameters': vars(audit.window)}
     if page == 'runs':
         history = archive().history()
+        spot_history = SpotCheckStore(archive().path).history()
+    if page == 'reports':
+        spot = _spot_board(run_id, request.args.get('shift'))
     chart = [row for row in results['hours']['rows'] if row['mg_nm3'] is not None]
     ceiling = max((float(row['mg_nm3']) for row in chart), default=0)
     return render_template('base.html', page=page, pages=PAGES, name=name, run_id=run_id, history=history,
                            certificate=certificate, result=results, meta=meta, ceiling=ceiling, labels=LABELS,
+                           spot=spot, spot_history=spot_history,
                            issue_rows=[r for r in results['validity']['rows'] if r['state'] == 'missing' or r['late']])
+
+
+def _spot_board(run_id, shift_id):
+    store = SpotCheckStore(archive().path)
+    if shift_id:
+        return {'kind': 'shift', 'view': store.board(archive().require, shift_id)}
+    open_shift = next((item for item in store.history() if item['status'] == 'open'), None)
+    if open_shift is not None:
+        return {'kind': 'shift', 'view': store.board(archive().require, open_shift['id'])}
+    return {'kind': 'idle', 'archived': bool(run_id), 'run_id': run_id}

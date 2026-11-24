@@ -24,8 +24,11 @@ python -m pytest -q
 2. 在「分钟有效性裁决」选「仅缺证」，查看氧量超界、同版冲突和仪器校准。工况重叠分钟在两份记录间以停机优先。
 3. 在「报送差异对账」核对 08:00 复算 30.50、报送 29.75、差额 +0.75 mg/Nm³。09:00 的 44 个有效分钟低于 45 门槛。
 4. 点击「归档复算」并重跑。相同原件复用运行编号。在「监测证据签发」下载带输入摘要、原值、裁决与勾稽的 JSON。
+5. 在「报送差异对账」下半区开抽查班次：每班最多 3 个小时，外勤领走的凭证照占名额；晚到监测重算后挂接新对账，空位只从本班未领且仍超差的小时按差额最大补齐，交班封班后留痕在「监测留档复跑」。
 
 五个预览接口均为 `GET /api/samples/{dirty|clean}/{stage}`，各工序按需计算；`stage` 值见深度登记。自有数据通过 `POST /api/runs` 的 `files` 对象提交字符串 `window`、`minutes`、`modes`、`reports`，也可提交 `{"sample":"dirty"}`。`GET /api/runs/{id}/{stage}` 查询归档，每次归档仅写入一个 SQLite 事务。`GET /api/runs` 列出历史，`GET /api/export/{id}` 签发证据。
+
+抽查凭证接口（写操作均以 `BEGIN IMMEDIATE` 串行化）：`POST /api/spotcheck/shifts` 按 `run_id` 开班；`POST /api/spotcheck/shifts/{id}/claim` 按 `hour` 领取；`POST /api/spotcheck/shifts/{id}/reconcile` 挂接重算 `run_id` 补空位；`POST /api/spotcheck/shifts/{id}/close` 交班；`GET /api/spotcheck/shifts[/{id}]` 查看看板与历史。凭证记录领取时的差额与对账来源，重算不改写已发凭证。
 
 - [数据定义与计算边界](docs/DATA-DICTIONARY.md)
 - [模块与陷阱验证](docs/DEPTH.md)

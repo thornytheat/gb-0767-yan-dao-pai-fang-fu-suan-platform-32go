@@ -14,6 +14,7 @@
 | M5 报送差异对账 | 核对差值、单据和游离报送 | `GET /api/samples/dirty/reports` | `app/monitor/reconcile.py` `app/monitor/reports.py` | `tests/test_reports.py` |
 | M6 批次留档复跑 | 汇总归档、并发复跑和查看历史 | `POST /api/runs` | `app/archive/run.py` `app/archive/store.py` | `tests/test_runs.py` |
 | M7 监测证据签发 | 下载和校验原件、摘要和判据 | `GET /api/export/{id}` | `app/archive/certificate.py` | `tests/test_evidence.py` |
+| M8 抽查凭证交班 | 开班、领取、重算补位与交班 | `POST /api/spotcheck/shifts` | `app/monitor/spotcheck.py` `app/archive/spotcheck.py` | `tests/test_spotcheck.py` `tests/test_spotcheck_store.py` |
 
 ## 陷阱登记
 
@@ -36,6 +37,16 @@
 - 污样分钟源 109 条记录 = 可读 107 + 重复表头 1 + 结构隔离 1。
 - 120 个应测分钟 = 91 有效 + 8 工况免计 + 21 缺证。参比氧复算与报送按小时核对。
 - 内容摘要与规则版本组成留档键，原件和计算结果同事务存储，重复提交复用原清单。
+
+## 抽查交班规则（M8）
+
+- 每班最多 3 个抽查小时，开班时只挂接已归档对账；预览数据不能开班。
+- 候选小时必须是当前对账中 `DEVIATION` 且绝对差额大于容差，按绝对差额降序、小时升序取空位。
+- 凭证一旦领走即固定其差额与留档 `run_id`；重算后即使回落到容差内也照占名额，看板单列「已回落·照占」。
+- 空位只从本班尚未领过且当前仍超差的小时补；已领小时不会重新进入候选，新超差自动出现在待补列表。
+- 重算挂接校验同烟道、同小时窗口；领取在 `BEGIN IMMEDIATE` 事务内重读当前挂接 packet，凭证差额与留档来源必然属于同一次对账。
+- 凭证主键 `(shift_id, hour)` 加写锁串行化：两人同时抢最后一个名额只发一张凭证，另一人得到 `VOUCHER_CLAIMED`/`SHIFT_FULL`。
+- 交班后班次只读，不能再领取或挂接；同一留档在交班后可再开新班。
 
 ## 已知边界
 

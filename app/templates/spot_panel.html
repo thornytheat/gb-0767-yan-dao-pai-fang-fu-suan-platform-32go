@@ -1,0 +1,34 @@
+<section class="panel spot-panel" id="spot-panel">
+<h2>外勤抽查凭证 · 每班最多 {{ spot.view.board.limit if spot.kind == 'shift' else 3 }} 个小时</h2>
+{% if spot.kind == 'idle' %}
+<p class="spot-rule">凭证按领走时的对账差额与留档来源签发；已领小时即使重算后回落也照占名额，空位只从本班未领且当前超出容差（{{ meta.parameters.tolerance }} mg/Nm³）的小时中按差额最大补齐。</p>
+{% if spot.archived %}
+<button type="button" class="spot-action" data-action="open" data-run="{{ spot.run_id }}">按本页对账开班</button>
+{% else %}<p class="spot-hint">预览数据不能开班：请先在上方「归档复算」生成留档，再回到本页开班。</p>{% endif %}
+{% else %}
+{% set view = spot.view %}
+<div class="spot-meta">
+<span>班次 <code>{{ view.id }}</code></span>
+<span class="tag {{ view.status }}">{{ '已交班' if view.status == 'closed' else '值班中' }}</span>
+<span>名额 {{ view.board.claimed|length }} / {{ view.board.limit }}</span>
+<span>容差 {{ view.tolerance }} mg/Nm³</span>
+<span>挂接对账 <code title="{{ view.run_id }}">{{ view.run_id[:12] }}</code> · 超差 {{ view.reconcile.deviations }} 小时</span>
+</div>
+{% if run_id and run_id != view.run_id and view.status == 'open' %}
+<p class="spot-hint">本页留档 <code title="{{ run_id }}">{{ run_id[:12] }}</code> 与班次挂接的对账不同，可挂接重算结果后再补空位。</p>
+<button type="button" class="spot-action" data-action="reconcile" data-shift="{{ view.id }}" data-run="{{ run_id }}">挂接本页重算对账</button>
+{% endif %}
+<h3>已领凭证（照占名额）</h3>
+<div class="scroll"><table><thead><tr><th>凭证号</th><th>小时</th><th>签发差额</th><th>重算后差额</th><th>留档来源</th><th>签发时刻 UTC</th></tr></thead>
+<tbody>{% for v in view.board.claimed %}<tr><td><code>{{ v.voucher_no }}</code></td><td>{{ v.local }}</td><td>{{ v.difference_mg_nm3 }}</td>
+<td>{% if v.current_difference_mg_nm3 is none %}—{% elif v.still_deviation %}{{ v.current_difference_mg_nm3 }} <span class="tag DEVIATION">仍超差</span>{% else %}{{ v.current_difference_mg_nm3 }} <span class="tag MATCH">已回落·照占</span>{% endif %}</td>
+<td><code title="{{ v.run_id }}">{{ v.run_id[:10] }}</code></td><td>{{ v.issued_utc }}</td></tr>{% else %}<tr><td colspan="6">本班尚未发出凭证。</td></tr>{% endfor %}</tbody></table></div>
+<h3>空位待补（本班未领且当前超差，按差额降序）</h3>
+<div class="scroll"><table><thead><tr><th>小时</th><th>复算</th><th>报送</th><th>差额</th><th>操作</th></tr></thead>
+<tbody>{% for c in view.board.candidates %}<tr><td>{{ c.local }}</td><td>{{ c.mg_nm3 }}</td><td>{{ c.reported_mg_nm3 }}</td><td>{{ c.difference_mg_nm3 }}</td>
+<td>{% if view.status == 'open' %}<button type="button" class="spot-action" data-action="claim" data-shift="{{ view.id }}" data-hour="{{ c.hour }}">领取凭证</button>{% else %}已交班{% endif %}</td></tr>
+{% else %}<tr><td colspan="5">{% if view.board.open_slots == 0 %}本班名额已发完。{% else %}当前没有未领的超差小时可补。{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% if view.status == 'open' %}<button type="button" class="spot-action danger" data-action="close" data-shift="{{ view.id }}">交班封班</button>{% endif %}
+{% endif %}
+<p class="spot-feedback" role="status" hidden></p>
+</section>
